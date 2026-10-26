@@ -440,4 +440,11 @@ class FileViewSet(viewsets.GenericViewSet):
         full = os.path.join(settings.MEDIA_ROOT, f.file.name)
         if not os.path.isfile(full):
             raise NotFound()
-        return FileResponse(open(full, "rb"), as_attachment=True, filename=f.original_name)
+        # inline=True -> preview in the browser tab; as_attachment via ?dl=1
+        as_attachment = request.GET.get("dl") == "1"
+        return FileResponse(
+            open(full, "rb"),
+            as_attachment=as_attachment,
+            filename=f.original_name,
+            content_type=f.mime or "application/octet-stream",
+        )

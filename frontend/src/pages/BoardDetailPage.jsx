@@ -4,6 +4,26 @@ import api, { apiError } from '../api/client';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+// Fetch a protected file as blob with the JWT header and open/save it.
+async function openFile(url, filename, save) {
+  const token = localStorage.getItem('access');
+  const r = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!r.ok) throw new Error('Не удалось открыть файл');
+  const blob = await r.blob();
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objUrl;
+  if (save) {
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+  } else {
+    window.open(objUrl, '_blank', 'noopener');
+    // revoke later so the new tab has time to load the blob
+    setTimeout(() => URL.revokeObjectURL(objUrl), 60_000);
+  }
+}
+
 function Attachment({ file, onDeleted }) {
   const isImage = IMAGE_TYPES.includes(file.mime) || /\.(jpe?g|png|webp)$/i.test(file.original_name);
   const del = async () => {
@@ -11,14 +31,24 @@ function Attachment({ file, onDeleted }) {
     await api.delete(`/files/${file.id}/`);
     onDeleted(file.id);
   };
+  const openInTab = async (e) => {
+    e.preventDefault();
+    try { await openFile(file.url, file.original_name, false); }
+    catch (err) { alert(err.message); }
+  };
+  const saveFile = async (e) => {
+    e.preventDefault();
+    try { await openFile(file.url, file.original_name, true); }
+    catch (err) { alert(err.message); }
+  };
   return (
     <div className="attachment">
       {isImage ? (
-        <a href={file.url} target="_blank" rel="noreferrer">
+        <a href={file.url} onClick={openInTab}>
           <img src={file.url} alt={file.original_name} className="thumb" />
         </a>
       ) : (
-        <a href={file.url} download={file.original_name}>📄 {file.original_name}</a>
+        <a href={file.url} download={file.original_name} onClick={saveFile}>📄 {file.original_name}</a>
       )}
       <button className="btn btn-danger btn-sm" onClick={del}>×</button>
     </div>
@@ -55,7 +85,6 @@ function CardItem({ card, onChanged, onDelete }) {
     try {
       const r = await api.post(`/cards/${card.id}/files/`, fd);
       onChanged({ ...card, files: [...(card.files || []), r.data] });
-      if (!IMAGE_TYPES.includes(r.data.mime)) window.location.reload(); // приватный url требует JWT-заголовка
     } catch (e) {
       setError(apiError(e));
     } finally {
