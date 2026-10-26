@@ -120,6 +120,11 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Rate limiting: /api/auth/register/ — не более 10 запросов в минуту на IP
+    # (дублируется на уровне nginx во frontend/nginx.conf)
+    "DEFAULT_THROTTLE_RATES": {
+        "register": "10/min",
+    },
 }
 
 SIMPLE_JWT = {

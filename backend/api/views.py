@@ -3,11 +3,12 @@ import os
 from django.conf import settings
 from django.contrib.auth import login, logout
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -84,8 +85,14 @@ def _errors(detail):
 
 # ----------------------------- Auth ---------------------------------------
 
+class RegisterRateThrottle(AnonRateThrottle):
+    """Не более 10 анонимных запросов в минуту на IP к /api/auth/register/."""
+    scope = "register"
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def register(request):
     ser = RegisterSerializer(data=request.data)
     if not ser.is_valid():

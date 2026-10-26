@@ -1,12 +1,16 @@
 import io
 import json
 
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 
 def register(client, email="user@test.com", username="user1", password="Passw0rd123"):
+    # Тесты дёргают /api/auth/register/ больше 10 раз с одного IP —
+    # чистим кэш троттлинга, чтобы лимит 10/мин не мешал прогону.
+    cache.clear()
     return client.post(
         "/api/auth/register/",
         {
