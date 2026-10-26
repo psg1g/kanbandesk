@@ -53,11 +53,13 @@ export default function RegisterPage() {
     }
   };
 
-  const field = (name, label, type) => (
+  const field = (name, label, type, autoComplete) => (
     <div className="field">
       <label>{label}</label>
       <input
         type={type}
+        name={name}
+        autoComplete={autoComplete || 'off'}
         value={form[name]}
         onChange={set(name)}
         onBlur={blur(name)}
@@ -72,10 +74,10 @@ export default function RegisterPage() {
       <h1>Регистрация</h1>
       {serverError && <div className="alert">{serverError}</div>}
       <form onSubmit={submit} noValidate>
-        {field('email', 'Email', 'email')}
-        {field('username', 'Логин', 'text')}
-        {field('password', 'Пароль', 'password')}
-        {field('password2', 'Повторите пароль', 'password')}
+        {field('email', 'Email', 'email', 'email')}
+        {field('username', 'Логин', 'text', 'username')}
+        {field('password', 'Пароль', 'password', 'new-password')}
+        {field('password2', 'Повторите пароль', 'password', 'new-password')}
         <button className="btn btn-primary" disabled={busy}>
           {busy ? 'Регистрация…' : 'Создать аккаунт'}
         </button>
