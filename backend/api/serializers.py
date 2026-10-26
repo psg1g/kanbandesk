@@ -52,12 +52,11 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        confirm = attrs.get("password_confirm") or attrs.get("password2") or ""
-        if not confirm:
-            raise serializers.ValidationError(
-                {"password2": "Обязательное поле: повторите пароль"}
-            )
-        if attrs["password"] != confirm:
+        confirm = attrs.get("password_confirm") or attrs.get("password2")
+        # если фронтенд (или браузерное автозаполнение) не передал поле
+        # подтверждения — не блокируем регистрацию; совпадение проверяем
+        # только когда значение прислано непустым
+        if confirm and attrs["password"] != confirm:
             raise serializers.ValidationError({"password2": "Пароли не совпадают"})
         return attrs
 
