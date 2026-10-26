@@ -14,8 +14,17 @@ PASSWORD_RE = re.compile(r"^(?=.*[A-Za-zА-Яа-я])(?=.*\d).{8,64}$")
 class RegisterSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
     username = serializers.CharField(max_length=30)
-    password = serializers.CharField(write_only=True, min_length=8, max_length=64)
-    password_confirm = serializers.CharField(write_only=True, min_length=8, max_length=64)
+    password = serializers.CharField(
+        write_only=True, min_length=8, max_length=64,
+        error_messages={"required": "Укажите пароль", "blank": "Укажите пароль"},
+    )
+    # фронтенд отправляет поле как password2 — принимаем оба варианта
+    password_confirm = serializers.CharField(
+        write_only=True, min_length=8, max_length=64, required=False, allow_blank=True,
+    )
+    password2 = serializers.CharField(
+        write_only=True, min_length=8, max_length=64, required=False, allow_blank=True,
+    )
 
     def validate_email(self, value):
         value = value.strip().lower()
@@ -43,10 +52,13 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        if attrs["password"] != attrs["password_confirm"]:
+        confirm = attrs.get("password_confirm") or attrs.get("password2") or ""
+        if not confirm:
             raise serializers.ValidationError(
-                {"password_confirm": "Пароли не совпадают"}
+                {"password2": "Обязательное поле: повторите пароль"}
             )
+        if attrs["password"] != confirm:
+            raise serializers.ValidationError({"password2": "Пароли не совпадают"})
         return attrs
 
     def create(self, validated_data):
