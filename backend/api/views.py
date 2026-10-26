@@ -8,7 +8,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -85,8 +85,32 @@ def _errors(detail):
 
 # ----------------------------- Auth ---------------------------------------
 
-class RegisterRateThrottle(AnonRateThrottle):
-    """Не более 10 анонимных запросов в минуту на IP к /api/auth/register/."""
+class LogoutRateThrottle(UserRateThrottle):
+    """Отдельный лимит на выход: не считаем logout общими 100/min."""
+
+    scope = "logout"
+
+
+def _xff_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    return xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", "")
+
+
+class XForwardedAnonThrottle(AnonRateThrottle):
+    """Анонимный троттлинг по реальному IP клиента за прокси (X-Forwarded-For)."""
+
+    def get_ident(self, request):
+        return _xff_ip(request)
+
+
+class RegisterRateThrottle(XForwardedAnonThrottle):
+    """Не более 10 запросов в минуту на IP к /api/auth/register/.
+
+    Важно: при запуске за nginx без учёта X-Forwarded-For DRF берёт
+    REMOTE_ADDR — адрес контейнера web, общий для всех пользователей.
+    Тогда лимит срабатывал глобально и ломал работу сайта целиком.
+    """
+
     scope = "register"
 
 
@@ -153,8 +177,7 @@ def login_view(request):
 
 
 def _client_ip(request):
-    xff = request.META.get("HTTP_X_FORWARDED_FOR")
-    return xff.split(",")[0].strip() if xff else request.META.get("REMOTE_ADDR", "")
+    return _xff_ip(request)
 
 
 def time_now():
@@ -164,8 +187,11 @@ def time_now():
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
+@throttle_classes([LogoutRateThrottle])
 def logout_view(request):
+    """Выход. Разрешён и неаутентифицированному клиенту (просто очищает
+    сессию), чтобы фронтенд никогда не получал здесь 401/429."""
     logout(request)
     return Response(status=status.HTTP_204_NO_CONTENT)
 

@@ -21,8 +21,16 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+def _normalize_origin(origin: str) -> str:
+    """Django 4+ требует схему (http:// или https://) в CSRF_TRUSTED_ORIGINS.
+    Прощаем людям запись вида '185.148.216.201:8080' — добавляем http://."""
+    if origin.startswith(("http://", "https://")):
+        return origin
+    return "http://" + origin
+
+
 CSRF_TRUSTED_ORIGINS = [
-    o.strip()
+    _normalize_origin(o.strip())
     for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
     if o.strip()
 ]
@@ -124,8 +132,15 @@ REST_FRAMEWORK = {
     # (дублируется на уровне nginx во frontend/nginx.conf)
     "DEFAULT_THROTTLE_RATES": {
         "register": "10/min",
+        "logout": "60/min",
+        "user": "1000/min",
+        "anon": "300/min",
     },
 }
+
+# Django стоит за nginx/Caddy: реальный IP клиента берём из X-Forwarded-For,
+# иначе все throttle-лимиты считаются по адресу прокси (общий для всех).
+NUM_PROXIES = int(os.environ.get("DJANGO_NUM_PROXIES", "1"))
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=24),
