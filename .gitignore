@@ -9,3 +9,6 @@ dist/
 .venv/
 venv/
 staticfiles/
+node_modules/
+dist/
+.env
