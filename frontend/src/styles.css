@@ -40,3 +40,10 @@ input.invalid, textarea.invalid { border-color: #de350b; }
 .card-desc { font-size: 13px; color: #44546f; margin-top: 4px; white-space: pre-wrap; }
 .attachment { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
 .thumb { max-height: 80px; max-width: 100%; border-radius: 6px; }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

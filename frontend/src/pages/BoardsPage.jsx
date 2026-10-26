@@ -37,6 +37,23 @@ export default function BoardsPage() {
     }
   };
 
+  const exportExcel = async () => {
+    setServerError('');
+    try {
+      const r = await api.get('/boards/export/', { responseType: 'blob' });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kanban_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setServerError(apiError(e));
+    }
+  };
+
   const removeBoard = async (b) => {
     if (!window.confirm(`Удалить доску «${b.title}» со всеми колонками и карточками?`)) return;
     try {
@@ -49,7 +66,11 @@ export default function BoardsPage() {
 
   return (
     <div>
-      <h1>Мои доски</h1>
+      <div className="page-header">
+        <h1>Мои доски</h1>
+        <button className="btn btn-outline" onClick={exportExcel}
+          title="Выгрузить список досок в .xlsx">Экспорт в Excel</button>
+      </div>
       {serverError && <div className="alert">{serverError}</div>}
 
       <form className="board-form card-panel" onSubmit={createBoard}>
