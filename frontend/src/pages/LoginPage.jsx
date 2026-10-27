@@ -38,8 +38,8 @@ export default function LoginPage() {
       {serverError && <div className="alert">{serverError}</div>}
       <form onSubmit={submit} noValidate>
         <div className="field">
-          <label>Email</label>
-          <input type="email" value={email}
+          <label>Email или логин</label>
+          <input type="text" autoComplete="username" value={email}
             onChange={(e) => setEmail(e.target.value)}
             onBlur={() => setTouched({ ...touched, email: true })}
             className={errors.email ? 'invalid' : ''} />

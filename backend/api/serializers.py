@@ -11,12 +11,16 @@ USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,30}$")
 PASSWORD_RE = re.compile(r"^(?=.*[A-Za-zА-Яа-я])(?=.*\d).{8,64}$")
 
 
+REQ = {"required": "Обязательное поле", "blank": "Обязательное поле"}
+
+
 class RegisterSerializer(serializers.Serializer):
-    email = serializers.EmailField(max_length=254)
-    username = serializers.CharField(max_length=30)
+    email = serializers.EmailField(max_length=254, error_messages=REQ)
+    username = serializers.CharField(max_length=30, error_messages=REQ)
     password = serializers.CharField(
         write_only=True, min_length=8, max_length=64,
-        error_messages={"required": "Укажите пароль", "blank": "Укажите пароль"},
+        error_messages={"required": "Укажите пароль", "blank": "Укажите пароль",
+                       "min_length": "Пароль минимум 8 символов"},
     )
     # фронтенд отправляет поле как password2 — принимаем оба варианта
     password_confirm = serializers.CharField(
@@ -70,13 +74,27 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    # поле принимает и email, и логин (username)
+    email = serializers.CharField(
+        max_length=254,
+        error_messages={"required": "Укажите email или логин",
+                        "blank": "Укажите email или логин"},
+    )
+    password = serializers.CharField(
+        write_only=True,
+        error_messages={"required": "Укажите пароль", "blank": "Укажите пароль"},
+    )
 
     def validate(self, attrs):
+        login = attrs.get("email", "").strip().lower()
+        # пустой email — сразу понятная ошибка, не трогаем бэкенды
+        if not login:
+            raise serializers.ValidationError(
+                {"detail": "Неверный email или пароль"}, code="invalid_login"
+            )
         user = authenticate(
             request=self.context.get("request"),
-            email=attrs.get("email", "").strip().lower(),
+            username=login,
             password=attrs.get("password", ""),
         )
         if user is None:

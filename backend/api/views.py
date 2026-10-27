@@ -74,6 +74,75 @@ def _issue_tokens(request, user, response):
     return _set_access_cookie(response, str(refresh.access_token))
 
 
+class EmailPasswordBackend:
+    """Свой бэкенд аутентификации вместо ModelBackend.
+
+    ModelBackend при неизвестном email возвращает None и пишет в лог
+    «Failed login for …», а некоторые версии Django/DRF отдают
+    «User not found». Здесь: явное сообщение на русском и тихий лог.
+    """
+
+    def authenticate(self, request, username=None, password=None, **kwargs):
+        User = get_user_model()
+        login = (username or kwargs.get("email") or kwargs.get("username") or "").strip().lower()
+        if not login or password is None:
+            return None
+        user = None
+        if "@" in login:
+            user = User.objects.filter(email__iexact=login).first()
+        else:
+            user = User.objects.filter(username__iexact=login).first()
+        if user is None:
+            # проверяем хеш несуществующего пользователя — защита от timing-атаки
+            from django.contrib.auth.hashers import check_password, make_password
+            check_password(password, make_password("dummy"))
+            return None
+        if not user.is_active:
+            return None
+        from django.contrib.auth.hashers import check_password
+
+        if check_password(password, user.password):
+            user.set_password(password)  # обновить хеш, если алгоритм изменился
+            user.save(update_fields=["password"])
+            return user
+        return None
+
+    def get_user(self, user_id):
+        try:
+            return get_user_model().objects.get(pk=user_id)
+        except get_user_model().DoesNotExist:
+            return None
+
+
+def _friendly_auth_error(errors_dict):
+    """Заменяем технические/английские сообщения DRF на человеческие."""
+    out = {}
+    for field, msgs in errors_dict.items():
+        if isinstance(msgs, list):
+            texts = [str(m) for m in msgs]
+        elif isinstance(msgs, dict):
+            texts = [str(v) for v in msgs.values()]
+        else:
+            texts = [str(msgs)]
+        fixed = []
+        for t in texts:
+            tl = t.lower()
+            if "user not found" in tl or "not_found" in tl or "unauthenticated user" in tl:
+                fixed.append("Неверный email или пароль")
+            elif "this password" in tl and "similiar" in tl:
+                fixed.append("Пароль слишком простой")
+            elif "entirely numeric" in tl:
+                fixed.append("Пароль не может состоять только из цифр")
+            elif "is too similar" in tl:
+                fixed.append("Пароль слишком похож на email или логин")
+            elif "this password cannot be similar to your" in tl:
+                fixed.append("Пароль не должен совпадать с логином или email")
+            else:
+                fixed.append(t)
+        out[field] = fixed
+    return {"errors": out}
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(request):
@@ -164,7 +233,17 @@ class RegisterRateThrottle(XForwardedAnonThrottle):
 def register(request):
     ser = RegisterSerializer(data=request.data)
     if not ser.is_valid():
-        return Response(_errors(ser.errors), status=status.HTTP_400_BAD_REQUEST)
+        return Response(_friendly_auth_error(ser.errors), status=status.HTTP_400_BAD_REQUEST)
+    # дополнительные проверки Django (простые пароли и т.п.)
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    try:
+        validate_password(ser.validated_data["password"])
+    except DjangoValidationError as e:
+        return Response(
+            _friendly_auth_error({"password": list(e.messages)}),
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     user = ser.save()
     response = Response(
         {"user": UserSerializer(user).data},
@@ -198,7 +277,7 @@ def login_view(request):
             if "detail" in ser.errors
             else status.HTTP_400_BAD_REQUEST
         )
-        errors = _errors(ser.errors)
+        errors = _friendly_auth_error(ser.errors)
         if "detail" in ser.errors:
             errors = {"errors": {"detail": "Неверный email или пароль"}}
         return Response(errors, status=code)

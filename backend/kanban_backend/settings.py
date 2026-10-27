@@ -96,6 +96,11 @@ if os.environ.get("USE_SQLITE", "0") == "1":
 
 AUTH_USER_MODEL = "api.User"
 
+# Аутентификация по email или логину (api.views.EmailPasswordBackend) —
+# вместо стандартного ModelBackend, который при неизвестном пользователе
+# отдавал технические ошибки вида «User not found; user_not_found».
+AUTHENTICATION_BACKENDS = ["api.views.EmailPasswordBackend"]
+
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
