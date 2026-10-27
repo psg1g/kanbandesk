@@ -156,16 +156,35 @@ from rest_framework.views import exception_handler as drf_exception_handler
 
 
 def api_exception_handler(exc, context):
-    """Единый формат ошибок: {"errors": {"поле": "сообщение"}}."""
-    from rest_framework.exceptions import ValidationError as DRFValidationError
+    """Единый формат ошибок: {"errors": {"поле": "сообщение"}}.
+
+    Любые технические сообщения вида «User not found; user_not_found»
+    (simplejwt при устаревшей куке и т.п.) никогда не попадают клиенту —
+    заменяются на понятные русские.
+    """
+    from rest_framework.exceptions import (
+        AuthenticationFailed,
+        ValidationError as DRFValidationError,
+    )
 
     response = drf_exception_handler(exc, context)
     if response is None:
         return None
+    # страховка на случай, если исключение всё же дошло сюда с user_not_found
+    code = getattr(getattr(exc, "detail", None), "code", None)
+    if isinstance(exc, AuthenticationFailed) and code in (
+        "user_not_found",
+        "token_not_valid",
+    ):
+        response.data = {"errors": {"detail": "Сессия истекла, войдите заново"}}
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        return response
     data = response.data
     if isinstance(data, dict) and "detail" in data and len(data) == 1:
         detail = data["detail"]
         msg = str(detail[0]) if isinstance(detail, list) else str(detail)
+        if "user not found" in msg.lower() or "user_not_found" in msg.lower():
+            msg = "Сессия истекла, войдите заново"
         response.data = {"errors": {"detail": msg}}
     elif isinstance(data, dict):
         response.data = _errors(data)
@@ -316,8 +335,14 @@ def refresh_view(request):
         django_cache.set(f"refresh:{user.id}", str(refresh), COOKIE_AGE)
     except Exception:
         return Response(status=status.HTTP_401_UNAUTHORIZED)
+    # если пользователя из токена уже нет в базе (аккаунт удалён) —
+    # не отдаём «User not found», а просто чистим куку: фронт уйдёт на /login
+    try:
+        access = str(refresh.access_token)
+    except Exception:
+        return _delete_access_cookie(Response(status=status.HTTP_401_UNAUTHORIZED))
     response = Response({"status": "ok"})
-    return _set_access_cookie(response, str(refresh.access_token))
+    return _set_access_cookie(response, access)
 
 
 def _client_ip(request):

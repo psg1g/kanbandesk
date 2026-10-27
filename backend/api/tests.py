@@ -248,3 +248,44 @@ class FileTests(TestCase):
     def test_guest_gets_401_on_export(self):
         anon = APIClient()
         self.assertEqual(anon.get("/api/boards/export/").status_code, 401)
+
+
+class StaleCookieAuthTests(TestCase):
+    """Регрессия: «User not found; user_not_found» при живой куке и
+    удалённом пользователе. Теперь такой клиент — просто гость (401),
+    технического текста в ответе быть не должно."""
+
+    def test_deleted_user_with_valid_cookie_gets_clean_401(self):
+        from django.core.cache import cache
+
+        # логин под вторым пользователем, запоминаем cookie
+        self.client.post(
+            "/api/auth/register/",
+            {"email": "ghost@ex.com", "username": "ghostuser",
+             "password": "pass1234", "password2": "pass1234"},
+            format="json",
+        )
+        r = self.client.post(
+            "/api/auth/login/",
+            {"email": "ghost@ex.com", "password": "pass1234"},
+            format="json",
+        )
+        self.assertEqual(r.status_code, 200)
+        token = r.cookies["access"].value
+        uid = r.json()["user"]["id"]
+        from api.models import User
+        User.objects.filter(pk=uid).delete()
+        cache.delete(f"refresh:{uid}")
+
+        anon = APIClient()
+        anon.cookies["access"] = token
+        resp = anon.get("/api/auth/me/")
+        self.assertEqual(resp.status_code, 401)
+        body = resp.content.decode()
+        self.assertNotIn("User not found", body)
+        self.assertNotIn("user_not_found", body)
+
+        # refresh по удалённому юзеру — тоже чистый 401 без техтекста
+        resp2 = anon.post("/api/auth/refresh/", {}, format="json")
+        self.assertEqual(resp2.status_code, 401)
+        self.assertNotIn("not_found", resp2.content.decode())
