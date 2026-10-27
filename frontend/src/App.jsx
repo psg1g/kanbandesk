@@ -24,11 +24,15 @@ export function Header() {
   const navigate = useNavigate();
   if (!user) return null;
   return (
-    <header className="header">
-      <span className="logo" onClick={() => navigate('/')}>📎 Канбан-доска</span>
+    <header className="topbar">
+      <a className="brand" href="/" onClick={(e) => { e.preventDefault(); navigate('/'); }}>
+        <span className="brand-icon">📎</span>
+        <span className="brand-text">Канбан-доска</span>
+      </a>
+      <div className="spacer" />
       <div className="header-right">
-        <span className="username">{user.username}</span>
-        <button className="btn btn-outline" onClick={async () => { await logout(); navigate('/login'); }}>
+        <span className="username">👋 {user.username}</span>
+        <button className="btn btn-ghost" onClick={async () => { await logout(); navigate('/login'); }}>
           Выйти
         </button>
       </div>
@@ -38,7 +42,7 @@ export function Header() {
 
 export default function App() {
   return (
-    <>
+    <div className="app-shell">
       <Header />
       <main className="container">
         <Routes>
@@ -49,6 +53,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </>
+    </div>
   );
 }

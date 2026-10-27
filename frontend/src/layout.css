@@ -1,0 +1,126 @@
+/* ============================================================
+   Kanban — базовая вёрстка страниц.
+   Визуальный стиль (цвета, анимации, стекломорфизм) — theme.css
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-main);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { min-height: 100vh; }
+
+.app-shell { display: flex; flex-direction: column; }
+
+.container { width: min(1200px, 100%); margin: 0 auto; padding: 24px 28px 60px; }
+
+h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4px; }
+h2 { font-size: 18px; font-weight: 700; margin: 0 0 10px; }
+
+a { color: var(--primary-dark); }
+
+.muted { color: var(--text-muted); }
+.small { font-size: 12.5px; }
+
+/* ---------- Шапка ---------- */
+.topbar .spacer { flex: 1; }
+.header-right { display: flex; gap: 10px; align-items: center; }
+.username { font-weight: 600; font-size: 14px; color: var(--text-muted); }
+
+/* ---------- Авторизация ---------- */
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  position: relative;
+}
+.auth-card form { margin-top: 6px; }
+.auth-links { margin-top: 18px; text-align: center; font-size: 14px; color: var(--text-muted); }
+.auth-links a { font-weight: 600; text-decoration: none; }
+.auth-links a:hover { text-decoration: underline; }
+
+/* ---------- Списки досок ---------- */
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 16px 0; }
+.toolbar .search { flex: 1; min-width: 220px; max-width: 380px; }
+.filter { padding: 9px 12px; border-radius: var(--r-md); border: 1.5px solid var(--border); background: #fff; font: inherit; font-size: 14px; cursor: pointer; transition: border-color .2s, box-shadow .2s; }
+.filter:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-glow); }
+.page-size { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-muted); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; margin-top: 14px; }
+
+.board-tile .board-title { font-weight: 700; font-size: 16px; color: var(--primary-dark); text-decoration: none; }
+.board-tile .board-title:hover { text-decoration: underline; }
+.desc { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tile-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+.board-form { margin: 14px 0; padding: 20px 22px; }
+.form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.form-row > * { flex: 1; min-width: 180px; }
+
+.pagination-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+/* ---------- Канбан-доска ---------- */
+.board-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 600; font-size: 14px; opacity: .85; transition: opacity .2s, transform .2s; }
+.back-link:hover { opacity: 1; transform: translateX(-2px); }
+
+.board-columns { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding: 6px 2px 22px; scroll-behavior: smooth; }
+.board-columns::-webkit-scrollbar { height: 10px; }
+.board-columns::-webkit-scrollbar-thumb { background: rgba(99,102,241,.25); border-radius: 999px; }
+
+.column-body { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 2px; }
+.column-body::-webkit-scrollbar { width: 8px; }
+.column-body::-webkit-scrollbar-thumb { background: rgba(99,102,241,.2); border-radius: 999px; }
+
+.column-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.col-actions { display: flex; gap: 2px; }
+.add-column { background: rgba(99,102,241,.05); border: 2px dashed rgba(99,102,241,.35); box-shadow: none; }
+.add-column:hover { background: rgba(99,102,241,.10); }
+
+.kanban-card { position: relative; }
+.kanban-card .card-title { font-weight: 650; font-size: 14px; }
+.card-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; white-space: pre-wrap; }
+.card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.card-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .2s; }
+.kanban-card:hover .card-actions { opacity: 1; }
+
+.attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.attachment { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.thumb { max-height: 84px; max-width: 100%; border-radius: var(--r-sm); border: 1px solid var(--border); transition: transform .25s var(--ease-spring), box-shadow .25s; cursor: zoom-in; }
+.thumb:hover { transform: scale(1.04); box-shadow: var(--shadow-md); }
+
+.center { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+
+/* ---------- Утилиты ---------- */
+.alert {
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--r-md);
+  padding: 11px 14px;
+  margin: 10px 0;
+  font-size: 14px;
+  animation: shake .35s ease, fade-slide-up .3s ease both;
+}
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-block { width: 100%; }
+.mt-0 { margin-top: 0; }
+.mb-0 { margin-bottom: 0; }
+
+/* ---------- Адаптив ---------- */
+@media (max-width: 720px) {
+  .container { padding: 16px 14px 48px; }
+  .topbar { padding: 12px 16px; }
+  .column { width: 260px; flex-basis: 260px; }
+  .page-header { flex-direction: column; align-items: stretch; }
+}

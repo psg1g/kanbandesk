@@ -106,39 +106,36 @@ export default function BoardsPage() {
   }
 
   return (
-    <div>
+    <div className="page-enter">
       <div className="page-header">
         <h1>Мои доски</h1>
-        <button className="btn btn-outline" onClick={exportExcel}
-          title="Выгрузить список досок в .xlsx">Экспорт в Excel</button>
+        <button className="btn btn-ghost" onClick={exportExcel}
+          title="Выгрузить список досок в .xlsx">📥 Экспорт в Excel</button>
       </div>
       {serverError && <div className="alert">{serverError}</div>}
 
-      <form className="board-form card-panel" onSubmit={createBoard}>
+      <form className="board-form glass-card" onSubmit={createBoard}>
         <div className="field">
-          <input placeholder="Название новой доски" value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className={errors.title ? 'invalid' : ''} />
-          {errors.title && <span className="error">{errors.title}</span>}
+          <input className={`input${errors.title ? ' invalid' : ''}`} placeholder="Название новой доски" value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          {errors.title && <span className="error-text">{errors.title}</span>}
         </div>
         <div className="field">
-          <textarea placeholder="Описание (необязательно)" rows="2" value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className={errors.description ? 'invalid' : ''} />
-          {errors.description && <span className="error">{errors.description}</span>}
+          <textarea className={`textarea${errors.description ? ' invalid' : ''}`} placeholder="Описание (необязательно)" rows="2" value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          {errors.description && <span className="error-text">{errors.description}</span>}
         </div>
         <div className="field">
-          <input placeholder="Метка: Работа, Учеба… (необязательно)" value={form.category}
+          <input className={`input${errors.category ? ' invalid' : ''}`} placeholder="Метка: Работа, Учеба… (необязательно)" value={form.category}
             maxLength={50}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-            className={errors.category ? 'invalid' : ''} />
-          {errors.category && <span className="error">{errors.category}</span>}
+            onChange={(e) => setForm({ ...form, category: e.target.value })} />
+          {errors.category && <span className="error-text">{errors.category}</span>}
         </div>
-        <button className="btn btn-primary">Создать доску</button>
+        <button className="btn btn-primary">✨ Создать доску</button>
       </form>
 
       <div className="toolbar">
-        <input className="search" placeholder="Поиск по названию…"
+        <input className="input search" placeholder="🔍 Поиск по названию…"
           value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className="filter" value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -148,29 +145,43 @@ export default function BoardsPage() {
           {categories.length > 0 && <option value="none">Без метки</option>}
         </select>
         <div className="page-size" title="Досок на странице">
-          {PAGE_SIZES.map((n) => (
-            <button key={n}
-              className={`btn btn-sm ${limit === n ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => changeLimit(n)}>{n}</button>
-          ))}
+          <span>На странице:</span>
+          <div className="limit-switch">
+            {PAGE_SIZES.map((n) => (
+              <button key={n}
+                className={`limit-btn${limit === n ? ' active' : ''}`}
+                onClick={() => changeLimit(n)}>{n}</button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {loading ? <div className="center">Загрузка…</div> : (
-        <div className="grid">
-          {boards.length === 0 && <p className="muted">
-            {search || category ? 'Ничего не найдено — измените поиск или фильтр.' : 'Досок пока нет — создайте первую.'}
-          </p>}
+      {loading ? (
+        <div className="grid stagger">
+          {Array.from({ length: limit }).map((_, i) => (
+            <div key={i} className="skeleton" style={{ height: 132 }} />
+          ))}
+        </div>
+      ) : boards.length === 0 ? (
+        <div className="empty-state">
+          <span className="emoji">{search || category ? '🔍' : '🗂️'}</span>
+          {search || category
+            ? 'Ничего не найдено — измените поиск или фильтр.'
+            : 'Досок пока нет — создайте первую!'}
+        </div>
+      ) : (
+        <div className="grid stagger">
           {boards.map((b) => (
-            <div className="board-tile card-panel" key={b.id}>
-              <Link to={`/boards/${b.id}`} className="board-title">{b.title}</Link>
+            <div className="board-tile glass-card" key={b.id}
+              onClick={(e) => { if (e.target.closest('a,button')) return; window.location.href = `/boards/${b.id}`; }}>
+              <h3><Link to={`/boards/${b.id}`} className="board-title">{b.title}</Link></h3>
               {b.category && <span className="badge"
-                onClick={() => setCategory(b.category)}
-                title="Фильтровать по этой метке">{b.category}</span>}
+                onClick={(e) => { e.stopPropagation(); setCategory(b.category); }}
+                title="Фильтровать по этой метке">🏷 {b.category}</span>}
               {b.description && <p className="muted desc">{b.description}</p>}
               <div className="tile-actions">
-                <Link to={`/boards/${b.id}`} className="btn btn-outline">Открыть</Link>
-                <button className="btn btn-danger" onClick={() => removeBoard(b)}>Удалить</button>
+                <Link to={`/boards/${b.id}`} className="btn btn-ghost btn-sm">Открыть →</Link>
+                <button className="btn btn-danger btn-sm" onClick={() => removeBoard(b)}>Удалить</button>
               </div>
             </div>
           ))}
@@ -178,16 +189,19 @@ export default function BoardsPage() {
       )}
 
       {pages > 1 && (
-        <div className="pagination">
-          <button className="btn btn-outline btn-sm" disabled={page <= 1}
-            onClick={() => setPage(page - 1)}>← Назад</button>
-          {pageButtons.map((p, i) => p === '…'
-            ? <span className="muted" key={`d${i}`}>…</span>
-            : <button key={p}
-                className={`btn btn-sm ${p === page ? 'btn-primary' : 'btn-outline'}`}
-                onClick={() => setPage(p)}>{p}</button>)}
-          <button className="btn btn-outline btn-sm" disabled={page >= pages}
-            onClick={() => setPage(page + 1)}>Вперёд →</button>
+        <div className="pagination-bar">
+          <span className="small muted">Страница {page} из {pages}</span>
+          <div className="pagination">
+            <button className="page-btn" disabled={page <= 1}
+              onClick={() => setPage(page - 1)} title="Назад">←</button>
+            {pageButtons.map((p, i) => p === '…'
+              ? <span className="muted" key={`d${i}`}>…</span>
+              : <button key={p}
+                  className={`page-btn${p === page ? ' active' : ''}`}
+                  onClick={() => setPage(p)}>{p}</button>)}
+            <button className="page-btn" disabled={page >= pages}
+              onClick={() => setPage(page + 1)} title="Вперёд">→</button>
+          </div>
         </div>
       )}
     </div>

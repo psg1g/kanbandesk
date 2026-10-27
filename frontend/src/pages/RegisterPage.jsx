@@ -70,21 +70,27 @@ export default function RegisterPage() {
   );
 
   return (
-    <div className="auth-card">
-      <h1>Регистрация</h1>
-      {serverError && <div className="alert">{serverError}</div>}
-      <form onSubmit={submit} noValidate>
-        {field('email', 'Email', 'email', 'email')}
-        {field('username', 'Логин', 'text', 'username')}
-        {field('password', 'Пароль', 'password', 'new-password')}
-        {field('password2', 'Повторите пароль', 'password', 'new-password')}
-        <button className="btn btn-primary" disabled={busy}>
-          {busy ? 'Регистрация…' : 'Создать аккаунт'}
-        </button>
-      </form>
-      <p className="muted">
-        Уже есть аккаунт? <Link to="/login">Войти</Link>
-      </p>
+    <div className="auth-page page-enter">
+      <div className="auth-bg" aria-hidden="true">
+        <div className="auth-blob b1" /><div className="auth-blob b2" /><div className="auth-blob b3" />
+      </div>
+      <div className="auth-card glass-card">
+        <h1 className="auth-title">Регистрация</h1>
+        <p className="auth-sub">Создайте аккаунт и начните планировать задачи</p>
+        {serverError && <div className="alert">{serverError}</div>}
+        <form onSubmit={submit} noValidate>
+          {field('email', 'Email', 'email', 'email')}
+          {field('username', 'Логин', 'text', 'username')}
+          {field('password', 'Пароль', 'password', 'new-password')}
+          {field('password2', 'Повторите пароль', 'password', 'new-password')}
+          <button className="btn btn-primary btn-block" disabled={busy}>
+            {busy ? (<><span className="spinner" /> Регистрация…</>) : 'Создать аккаунт'}
+          </button>
+        </form>
+        <p className="auth-links">
+          Уже есть аккаунт? <Link to="/login">Войти</Link>
+        </p>
+      </div>
     </div>
   );
 }

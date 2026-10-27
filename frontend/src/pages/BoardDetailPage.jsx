@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api, { apiError } from '../api/client';
+import useToasts, { Toasts } from '../components/Toasts';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const COLUMN_TINTS = [
+  'rgba(99,102,241,.07)', 'rgba(217,70,239,.06)', 'rgba(16,185,129,.07)',
+  'rgba(245,158,11,.07)', 'rgba(59,130,246,.07)', 'rgba(239,68,68,.05)',
+];
 
 // Fetch a protected file as blob (JWT передаётся в httpOnly cookie) and open/save it.
 async function openFile(url, filename, save) {
@@ -43,13 +48,15 @@ function Attachment({ file, onDeleted }) {
   return (
     <div className="attachment">
       {isImage ? (
-        <a href={file.url} onClick={openInTab}>
+        <a className="attach-chip" href={file.url} onClick={openInTab}>
           <img src={file.url} alt={file.original_name} className="thumb" />
         </a>
       ) : (
-        <a href={file.url} download={file.original_name} onClick={saveFile}>📄 {file.original_name}</a>
+        <a className="attach-chip" href={file.url} download={file.original_name} onClick={saveFile}>
+          📄 {file.original_name}
+        </a>
       )}
-      <button className="btn btn-danger btn-sm" onClick={del}>×</button>
+      <button className="btn-icon danger" title="Удалить файл" onClick={del}>✕</button>
     </div>
   );
 }
@@ -60,6 +67,7 @@ function CardItem({ card, onChanged, onDelete }) {
   const [description, setDescription] = useState(card.description || '');
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef(null);
 
   const save = async () => {
@@ -96,32 +104,40 @@ function CardItem({ card, onChanged, onDelete }) {
     onChanged({ ...card, files: (card.files || []).filter((f) => f.id !== id) });
 
   return (
-    <div className="kanban-card card-panel" draggable={!editing}
-      onDragStart={(e) => e.dataTransfer.setData('text/plain', String(card.id))}>
+    <div className={`kanban-card card-item${dragging ? ' dragging' : ''}`} draggable={!editing}
+      onDragStart={(e) => { setDragging(true); e.dataTransfer.setData('text/plain', String(card.id)); }}
+      onDragEnd={() => setDragging(false)}>
       {editing ? (
         <>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" />
-          <textarea rows="3" value={description} onChange={(e) => setDescription(e.target.value)}
+          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" />
+          <textarea className="textarea" rows="3" value={description} onChange={(e) => setDescription(e.target.value)}
             placeholder="Описание" />
-          {error && <span className="error">{error}</span>}
+          {error && <span className="error-text">{error}</span>}
           <div className="tile-actions">
             <button className="btn btn-primary btn-sm" onClick={save}>Сохранить</button>
-            <button className="btn btn-outline btn-sm" onClick={() => { setEditing(false); setTitle(card.title); setDescription(card.description || ''); setError(''); }}>Отмена</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(false); setTitle(card.title); setDescription(card.description || ''); setError(''); }}>Отмена</button>
           </div>
         </>
       ) : (
         <>
           <div className="card-title">{card.title}</div>
           {card.description && <div className="card-desc">{card.description}</div>}
-          {(card.files || []).map((f) => <Attachment key={f.id} file={f} onDeleted={removeFile} />)}
-          {error && <span className="error">{error}</span>}
-          <div className="tile-actions">
-            <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>✏️</button>
-            <label className="btn btn-outline btn-sm">
-              {uploading ? 'Загрузка…' : '📎 Файл'}
-              <input ref={fileRef} type="file" hidden onChange={upload} disabled={uploading} />
-            </label>
-            <button className="btn btn-danger btn-sm" onClick={() => onDelete(card)}>🗑</button>
+          {(card.files || []).length > 0 && (
+            <div className="attachments">
+              {card.files.map((f) => <Attachment key={f.id} file={f} onDeleted={removeFile} />)}
+            </div>
+          )}
+          {error && <span className="error-text">{error}</span>}
+          <div className="card-footer">
+            <span className="small muted">{uploading ? '⏳ Загрузка…' : ''}</span>
+            <span className="card-actions">
+              <button className="btn-icon" title="Редактировать" onClick={() => setEditing(true)}>✏️</button>
+              <label className="btn-icon" title="Прикрепить файл" style={{ cursor: 'pointer' }}>
+                📎
+                <input ref={fileRef} type="file" hidden onChange={upload} disabled={uploading} />
+              </label>
+              <button className="btn-icon danger" title="Удалить карточку" onClick={() => onDelete(card)}>🗑</button>
+            </span>
           </div>
         </>
       )}
@@ -135,7 +151,8 @@ export default function BoardDetailPage() {
   const [columns, setColumns] = useState([]);
   const [serverError, setServerError] = useState('');
   const [newColTitle, setNewColTitle] = useState('');
-  const dragOverCol = useRef(null);
+  const [dragOverCol, setDragOverCol] = useState(null);
+  const { toasts, push, remove } = useToasts();
 
   const load = useCallback(() => {
     api.get(`/boards/${id}/`)
@@ -161,6 +178,7 @@ export default function BoardDetailPage() {
       await api.post('/columns/', { board_id: Number(id), title: t });
       setNewColTitle('');
       setServerError('');
+      push(`Колонка «${t}» создана`);
       load();
     } catch (e) { setServerError(apiError(e)); }
   };
@@ -169,6 +187,7 @@ export default function BoardDetailPage() {
     if (!window.confirm(`Удалить колонку «${col.title}»?`)) return;
     try {
       await api.delete(`/columns/${col.id}/`);
+      push('Колонка удалена');
       load();
     } catch (e) {
       setServerError(apiError(e)); // например, «нельзя удалить непустую колонку»
@@ -188,6 +207,7 @@ export default function BoardDetailPage() {
     if (!window.confirm(`Удалить карточку «${card.title}»?`)) return;
     try {
       await api.delete(`/cards/${card.id}/`);
+      push('Карточка удалена');
       load();
     } catch (e) { setServerError(apiError(e)); }
   };
@@ -201,6 +221,7 @@ export default function BoardDetailPage() {
 
   const dropOnColumn = async (col, e) => {
     e.preventDefault();
+    setDragOverCol(null);
     const cardId = Number(e.dataTransfer.getData('text/plain'));
     if (!cardId) return;
     const source = columns.find((c) => c.cards.some((k) => k.id === cardId));
@@ -213,41 +234,59 @@ export default function BoardDetailPage() {
     } catch (err) { setServerError(apiError(err)); }
   };
 
-  if (!board) return <div className="center">Загрузка…</div>;
+  if (!board) {
+    return (
+      <div className="center">
+        <span className="spinner dark" style={{ width: 28, height: 28 }} />
+        <p className="muted">Загрузка доски…</p>
+      </div>
+    );
+  }
 
   return (
-    <div>
+    <div className="page-enter">
       <div className="board-header">
-        <h1>{board.title}</h1>
-        <Link to="/" className="btn btn-outline">← К доскам</Link>
+        <div>
+          <h1>{board.title}</h1>
+          {board.description && <p className="muted">{board.description}</p>}
+        </div>
+        <Link to="/" className="back-link">← К доскам</Link>
       </div>
-      {board.description && <p className="muted">{board.description}</p>}
       {serverError && <div className="alert">{serverError}</div>}
 
       <div className="board-columns">
-        {columns.map((col) => (
-          <div className="column card-panel" key={col.id}
-            onDragOver={(e) => { e.preventDefault(); dragOverCol.current = col.id; }}
+        {columns.map((col, idx) => (
+          <div className="column glass-card" key={col.id}
+            style={{ background: COLUMN_TINTS[idx % COLUMN_TINTS.length] }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.id); }}
+            onDragLeave={() => setDragOverCol((v) => (v === col.id ? null : v))}
             onDrop={(e) => dropOnColumn(col, e)}>
-            <div className="column-header">
+            <div className="column-header column-title">
               <strong>{col.title}</strong>
+              <span className="column-count">{col.cards.length}</span>
               <span className="col-actions">
-                <button className="btn btn-outline btn-sm" title="Добавить карточку" onClick={() => addCard(col)}>＋</button>
-                <button className="btn btn-danger btn-sm" title="Удалить колонку" onClick={() => deleteColumn(col)}>×</button>
+                <button className="btn-icon" title="Добавить карточку" onClick={() => addCard(col)}>＋</button>
+                <button className="btn-icon danger" title="Удалить колонку" onClick={() => deleteColumn(col)}>✕</button>
               </span>
             </div>
-            {col.cards.map((card) => (
-              <CardItem key={card.id} card={card} onChanged={updateCard} onDelete={deleteCard} />
-            ))}
-            {col.cards.length === 0 && <p className="muted small">Перетащите сюда карточку</p>}
+            <div className="column-body stagger">
+              {col.cards.map((card) => (
+                <CardItem key={card.id} card={card} onChanged={updateCard} onDelete={deleteCard} />
+              ))}
+              {col.cards.length === 0 && (
+                <div className="drop-zone">Перетащите сюда карточку</div>
+              )}
+            </div>
           </div>
         ))}
-        <form className="column add-column" onSubmit={addColumn}>
-          <input placeholder="Новая колонка" value={newColTitle}
+        <form className="column add-column glass-card" onSubmit={addColumn}>
+          <input className="input" placeholder="Новая колонка" value={newColTitle}
             onChange={(e) => setNewColTitle(e.target.value)} />
           <button className="btn btn-primary btn-sm">Добавить</button>
         </form>
       </div>
+
+      <Toasts toasts={toasts} onRemove={remove} />
     </div>
   );
 }
