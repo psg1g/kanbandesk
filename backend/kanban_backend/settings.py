@@ -121,7 +121,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # access-токен берётся из httpOnly cookie `access`
+        # (api.views.CookieJWTAuthentication), заголовок Authorization
+        # тоже поддерживается — для админ-инструментов и совместимости
+        "api.authentication.CookieJWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "EXCEPTION_HANDLER": "api.views.api_exception_handler",

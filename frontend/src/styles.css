@@ -47,3 +47,22 @@ input.invalid, textarea.invalid { border-color: #de350b; }
   justify-content: space-between;
   gap: 12px;
 }
+
+/* Toolbar: поиск + фильтр по метке + размер страницы */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
+.toolbar .search { flex: 1; min-width: 200px; }
+.filter { padding: 8px 10px; border: 1px solid #c1c7d0; border-radius: 6px; background: #fff; font-size: 14px; }
+.page-size { display: flex; gap: 4px; align-items: center; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+
+/* Метка доски */
+.badge {
+  display: inline-block; margin-left: 8px; padding: 2px 10px;
+  border-radius: 12px; background: #e9f2ff; color: #0052cc;
+  font-size: 12px; cursor: pointer; vertical-align: middle;
+}
+.badge:hover { background: #d2e6ff; }
+
+/* Пагинация */
+.pagination { display: flex; gap: 6px; justify-content: center; align-items: center; margin: 18px 0; flex-wrap: wrap; }
+.pagination button:disabled { opacity: .45; cursor: default; }

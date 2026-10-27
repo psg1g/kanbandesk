@@ -53,10 +53,11 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         confirm = attrs.get("password_confirm") or attrs.get("password2")
-        # если фронтенд (или браузерное автозаполнение) не передал поле
-        # подтверждения — не блокируем регистрацию; совпадение проверяем
-        # только когда значение прислано непустым
-        if confirm and attrs["password"] != confirm:
+        if not confirm:
+            raise serializers.ValidationError(
+                {"password2": "Подтвердите пароль"}
+            )
+        if attrs["password"] != confirm:
             raise serializers.ValidationError({"password2": "Пароли не совпадают"})
         return attrs
 
@@ -106,6 +107,12 @@ class TitleFieldsMixin:
     def validate_description(self, value):
         if value and len(value) > 2000:
             raise serializers.ValidationError("Не более 2000 символов")
+        return value
+
+    def validate_category(self, value):
+        value = (value or "").strip()
+        if len(value) > 50:
+            raise serializers.ValidationError("Метка: до 50 символов")
         return value
 
 
@@ -207,6 +214,7 @@ class BoardSerializer(TitleFieldsMixin, serializers.ModelSerializer):
             "id",
             "title",
             "description",
+            "category",
             "columns",
             "created_at",
             "updated_at",
@@ -224,6 +232,7 @@ class BoardListSerializer(TitleFieldsMixin, serializers.ModelSerializer):
             "id",
             "title",
             "description",
+            "category",
             "column_count",
             "card_count",
             "created_at",

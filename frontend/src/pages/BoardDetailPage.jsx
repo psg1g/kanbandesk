@@ -4,10 +4,9 @@ import api, { apiError } from '../api/client';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-// Fetch a protected file as blob with the JWT header and open/save it.
+// Fetch a protected file as blob (JWT передаётся в httpOnly cookie) and open/save it.
 async function openFile(url, filename, save) {
-  const token = localStorage.getItem('access');
-  const r = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const r = await fetch(url, { credentials: 'include' });
   if (!r.ok) throw new Error('Не удалось открыть файл');
   const blob = await r.blob();
   const objUrl = URL.createObjectURL(blob);

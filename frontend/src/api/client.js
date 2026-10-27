@@ -2,17 +2,23 @@ import axios from 'axios';
 
 const api = axios.create({ baseURL: '/api', withCredentials: true });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+// Access-токен хранится в httpOnly cookie `access` (устанавливает сервер).
+// JS к нему не имеет доступа — заголовок Authorization больше не нужен.
 
 api.interceptors.response.use(
   (r) => r,
-  (err) => {
-    if (err.response && err.response.status === 401) {
-      localStorage.removeItem('access');
+  async (err) => {
+    const status = err.response && err.response.status;
+    const url = err.config && err.config.url;
+    if (status === 401 && url !== '/auth/login/' && url !== '/auth/register/') {
+      // токен в cookie истёк — пробуем один раз обновить и повторить запрос
+      if (!err.config._retried) {
+        try {
+          await api.post('/auth/refresh/', {}, { _retried: true });
+          return api({ ...err.config, _retried: true });
+        } catch (e) { /* refresh не помог — уходим на логин */ }
+      }
+      localStorage.removeItem('user');
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }

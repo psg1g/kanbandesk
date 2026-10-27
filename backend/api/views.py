@@ -12,6 +12,8 @@ from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .authentication import ACCESS_COOKIE, CookieJWTAuthentication  # noqa: F401
+
 from .excel import ExcelExportMixin
 from .file_validation import validate_upload
 from .models import Board, Card, Column, File, User
@@ -28,6 +30,30 @@ from .serializers import (
     UploadFileSerializer,
     UserSerializer,
 )
+
+
+# ---------------------- Access token in httpOnly cookie --------------------
+
+COOKIE_AGE = 24 * 3600  # совпадает с ACCESS_TOKEN_LIFETIME (24 ч)
+
+
+def _set_access_cookie(response, access_token):
+    """Access-токен — только в httpOnly cookie, в теле ответа его нет."""
+    response.set_cookie(
+        ACCESS_COOKIE,
+        access_token,
+        max_age=COOKIE_AGE,
+        path="/",
+        httponly=True,
+        samesite="Lax",
+        secure=getattr(settings, "SESSION_COOKIE_SECURE", False),
+    )
+    return response
+
+
+def _delete_access_cookie(response):
+    response.delete_cookie(ACCESS_COOKIE, path="/")
+    return response
 
 
 @api_view(["GET"])
@@ -123,14 +149,11 @@ def register(request):
         return Response(_errors(ser.errors), status=status.HTTP_400_BAD_REQUEST)
     user = ser.save()
     refresh = RefreshToken.for_user(user)
-    return Response(
-        {
-            "user": UserSerializer(user).data,
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        },
+    response = Response(
+        {"user": UserSerializer(user).data},
         status=status.HTTP_201_CREATED,
     )
+    return _set_access_cookie(response, str(refresh.access_token))
 
 
 @api_view(["POST"])
@@ -166,14 +189,9 @@ def login_view(request):
     user = ser.validated_data["user"]
     cache.delete(cache_key)
     login(request, user)  # cookie-сессия Django
-    refresh = RefreshToken.for_user(user)  # JWT для Authorization: Bearer
-    return Response(
-        {
-            "user": UserSerializer(user).data,
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        }
-    )
+    refresh = RefreshToken.for_user(user)  # JWT в httpOnly cookie
+    response = Response({"user": UserSerializer(user).data})
+    return _set_access_cookie(response, str(refresh.access_token))
 
 
 def _client_ip(request):
@@ -193,7 +211,7 @@ def logout_view(request):
     """Выход. Разрешён и неаутентифицированному клиенту (просто очищает
     сессию), чтобы фронтенд никогда не получал здесь 401/429."""
     logout(request)
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    return _delete_access_cookie(Response(status=status.HTTP_204_NO_CONTENT))
 
 
 @api_view(["GET"])
@@ -205,9 +223,16 @@ def me(request):
 # --------------------------- Boards (items) --------------------------------
 
 class BoardPagination(PageNumberPagination):
-    page_size = 20
+    page_size = 5
     page_size_query_param = "limit"
     max_page_size = 100
+
+    def get_paginated_response(self, data):
+        response = super().get_paginated_response(data)
+        response.data["page"] = self.page.number
+        response.data["pages"] = self.page.paginator.num_pages
+        response.data["page_size"] = self.get_page_size(self.request)
+        return response
 
 
 class BoardViewSet(ExcelExportMixin, viewsets.ModelViewSet):
@@ -231,8 +256,27 @@ class BoardViewSet(ExcelExportMixin, viewsets.ModelViewSet):
         )
         search = self.request.query_params.get("search", "").strip()
         if search:
-            qs = qs.filter(title__icontains=search)
+            from django.db.models import Q
+
+            qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
+        category = self.request.query_params.get("category", "").strip()
+        if category:
+            if category == "none":
+                qs = qs.filter(category="")
+            else:
+                qs = qs.filter(category__iexact=category)
         return qs
+
+    @action(detail=False, methods=["get"], url_path="categories")
+    def categories(self, request):
+        """Список меток досок текущего пользователя для фильтра."""
+        names = (
+            Board.objects.filter(owner=request.user)
+            .exclude(category="")
+            .values_list("category", flat=True)
+            .distinct()
+        )
+        return Response(sorted({n for n in names if n}))
 
     def get_serializer_class(self):
         if self.action == "list":

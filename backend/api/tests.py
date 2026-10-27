@@ -11,7 +11,7 @@ def register(client, email="user@test.com", username="user1", password="Passw0rd
     # Тесты дёргают /api/auth/register/ больше 10 раз с одного IP —
     # чистим кэш троттлинга, чтобы лимит 10/мин не мешал прогону.
     cache.clear()
-    return client.post(
+    r = client.post(
         "/api/auth/register/",
         {
             "email": email,
@@ -21,6 +21,11 @@ def register(client, email="user@test.com", username="user1", password="Passw0rd
         },
         format="json",
     )
+    # access-токен приходит в httpOnly cookie `access`; для тестов
+    # извлекаем его оттуда и передаём через заголовок Authorization
+    if r.status_code in (200, 201):
+        r.access_token = r.cookies.get("access").value if "access" in r.cookies else None
+    return r
 
 
 class AuthTests(TestCase):
@@ -34,7 +39,7 @@ class AuthTests(TestCase):
     def test_register_valid(self):
         r = register(self.client)
         self.assertEqual(r.status_code, 201)
-        self.assertIn("access", r.json())
+        self.assertIsNotNone(r.access_token)
 
     def test_register_invalid_password(self):
         r = self.client.post(
@@ -70,7 +75,9 @@ class AuthTests(TestCase):
             format="json",
         )
         self.assertEqual(r.status_code, 200)
-        token = r.json()["access"]
+        # токен — в httpOnly cookie; в теле его больше нет
+        self.assertNotIn("access", r.json())
+        token = r.cookies["access"].value
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         me = self.client.get("/api/auth/me/")
         self.assertEqual(me.status_code, 200)
@@ -87,7 +94,7 @@ class CrudTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         r = register(self.client)
-        self.token = r.json()["access"]
+        self.token = r.access_token
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token}")
 
     def _board(self, title="Моя доска"):
@@ -117,9 +124,9 @@ class CrudTests(TestCase):
         c2 = APIClient()
         register(c2, email="second@test.com", username="second")
         c2.credentials(
-            HTTP_AUTHORIZATION=f"Bearer {c2.get('/api/auth/login', {'email':'second@test.com','password':'Passw0rd123'}, format='json').json()['access']}"
+            HTTP_AUTHORIZATION=f"Bearer {c2.get('/api/auth/login', {'email':'second@test.com','password':'Passw0rd123'}, format='json').access_token}"
         ) if False else None
-        tok2 = register(c2, email="third@test.com", username="third").json()["access"]
+        tok2 = register(c2, email="third@test.com", username="third").access_token
         c2.credentials(HTTP_AUTHORIZATION=f"Bearer {tok2}")
         self.assertIn(c2.get(f"/api/boards/{b}/").status_code, (403, 404))
         self.assertIn(
@@ -187,7 +194,7 @@ class CrudTests(TestCase):
 class FileTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        tok = register(self.client).json()["access"]
+        tok = register(self.client).access_token
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tok}")
         bid = self.client.post("/api/boards/", {"title": "B"}, format="json").json()["id"]
         col = self.client.post(

@@ -80,6 +80,10 @@ class Board(models.Model):
     )
     title = models.CharField(max_length=120, validators=[])
     description = models.TextField(blank=True, default="", max_length=2000)
+    category = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Метка доски: Работа, Учёба и т.п.",
+    )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -7,32 +7,29 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Access-токен хранится в httpOnly cookie — JS его не видит.
+  // Проверяем сессию запросом /auth/me/ (401 = не залогинен).
   useEffect(() => {
-    const token = localStorage.getItem('access');
-    if (!token) { setLoading(false); return; }
     api.get('/auth/me/')
       .then((r) => setUser(r.data))
-      .catch(() => localStorage.removeItem('access'))
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {
     const r = await api.post('/auth/login/', { email, password });
-    localStorage.setItem('access', r.data.access);
     setUser(r.data.user);
     return r.data.user;
   };
 
   const register = async (payload) => {
     const r = await api.post('/auth/register/', payload);
-    localStorage.setItem('access', r.data.access);
     setUser(r.data.user);
     return r.data.user;
   };
 
   const logout = async () => {
     try { await api.post('/auth/logout/'); } catch (e) { /* noop */ }
-    localStorage.removeItem('access');
     setUser(null);
   };
 
