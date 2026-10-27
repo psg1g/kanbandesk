@@ -9,6 +9,7 @@ from .views import (
     login_view,
     logout_view,
     me,
+    refresh_view,
     register,
 )
 
@@ -22,6 +23,7 @@ urlpatterns = [
     path("auth/register/", register),
     path("auth/login/", login_view),
     path("auth/logout/", logout_view),
+    path("auth/refresh/", refresh_view),
     path("auth/me/", me),
     path("", include(router.urls)),
 ]

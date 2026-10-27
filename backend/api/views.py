@@ -1,7 +1,7 @@
 import os
 
 from django.conf import settings
-from django.contrib.auth import login, logout
+from django.contrib.auth import get_user_model, login, logout
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
@@ -54,6 +54,24 @@ def _set_access_cookie(response, access_token):
 def _delete_access_cookie(response):
     response.delete_cookie(ACCESS_COOKIE, path="/")
     return response
+
+
+def _issue_tokens(request, user, response):
+    """Выдать JWT и установить access-токен в httpOnly cookie.
+
+    Refresh-токен храним подписанным в cacheDB ( inaccessible for JS),
+    по нему работает /auth/refresh/. В теле ответа токенов нет.
+    """
+    from django.core.cache import cache as django_cache
+
+    refresh = RefreshToken.for_user(user)
+    try:
+        django_cache.set(f"refresh:{user.id}", str(refresh), COOKIE_AGE)
+    except Exception:  # кэш недоступен — просто теряем возможность refresh
+        pass
+    # Django-сессия как резервный способ авторизации (для admin и т.п.)
+    login(request, user)
+    return _set_access_cookie(response, str(refresh.access_token))
 
 
 @api_view(["GET"])
@@ -148,12 +166,11 @@ def register(request):
     if not ser.is_valid():
         return Response(_errors(ser.errors), status=status.HTTP_400_BAD_REQUEST)
     user = ser.save()
-    refresh = RefreshToken.for_user(user)
     response = Response(
         {"user": UserSerializer(user).data},
         status=status.HTTP_201_CREATED,
     )
-    return _set_access_cookie(response, str(refresh.access_token))
+    return _issue_tokens(request, user, response)
 
 
 @api_view(["POST"])
@@ -188,9 +205,39 @@ def login_view(request):
 
     user = ser.validated_data["user"]
     cache.delete(cache_key)
-    login(request, user)  # cookie-сессия Django
-    refresh = RefreshToken.for_user(user)  # JWT в httpOnly cookie
     response = Response({"user": UserSerializer(user).data})
+    return _issue_tokens(request, user, response)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def refresh_view(request):
+    """Обновить access-токен в httpOnly cookie по серверному refresh-токену.
+
+    Токены не возвращаются в теле и никогда не попадают в JS/localStorage.
+    """
+    from django.core.cache import cache as django_cache
+
+    user = getattr(request, "user", None)
+    if not (user and user.is_authenticated):
+        # кука access истекла — пробуем восстановить по сессии Django
+        uid = request.session.get("_auth_user_id")
+        if not uid:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            user = get_user_model().objects.get(pk=uid)
+        except get_user_model().DoesNotExist:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+    stored = django_cache.get(f"refresh:{user.id}")
+    if not stored:
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        refresh = RefreshToken(stored)
+        # продлеем хранение refresh-токена
+        django_cache.set(f"refresh:{user.id}", str(refresh), COOKIE_AGE)
+    except Exception:
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    response = Response({"status": "ok"})
     return _set_access_cookie(response, str(refresh.access_token))
 
 
@@ -210,6 +257,14 @@ def time_now():
 def logout_view(request):
     """Выход. Разрешён и неаутентифицированному клиенту (просто очищает
     сессию), чтобы фронтенд никогда не получал здесь 401/429."""
+    uid = request.session.get("_auth_user_id")
+    user = getattr(request, "user", None)
+    if uid is None and user and user.is_authenticated:
+        uid = user.pk
+    if uid is not None:
+        from django.core.cache import cache as django_cache
+
+        django_cache.delete(f"refresh:{uid}")
     logout(request)
     return _delete_access_cookie(Response(status=status.HTTP_204_NO_CONTENT))
 
