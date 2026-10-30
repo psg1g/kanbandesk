@@ -25,7 +25,10 @@ cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 USE_SQLITE=1 python manage.py migrate   # для разработки без PostgreSQL
-USE_SQLITE=1 python manage.py runserver
+USE_SQLITE=1 python manage.py createsuperuser
+# ВАЖНО: с DJANGO_DEBUG=0 нужно один раз собрать статику, иначе админка откроется без стилей (голый HTML)
+USE_SQLITE=1 python manage.py collectstatic --noinput
+USE_SQLITE=1 DJANGO_DEBUG=1 python manage.py runserver   # http://localhost:8000/admin — стили есть всегда
 python manage.py test api               # 20 тестов
 ```
 Frontend:
