@@ -119,6 +119,15 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = os.environ.get("STATIC_ROOT", str(BASE_DIR / "staticfiles"))
+
+# Admin panel must always load its bundled CSS/JS. WhiteNoise serves STATIC_ROOT
+# regardless of DEBUG, so the Django admin never renders as bare HTML.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"
+    },
+}
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.environ.get("MEDIA_ROOT", str(BASE_DIR / "uploads"))
 

@@ -9,7 +9,6 @@ from api.views import health
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("django-admin/", admin.site.urls),
     path("api/", include("api.urls")),
     path("health/", health),
 ]
