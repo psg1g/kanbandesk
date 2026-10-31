@@ -184,11 +184,17 @@ class CrudTests(TestCase):
         from openpyxl import load_workbook
 
         wb = load_workbook(io.BytesIO(r.content))
-        ws = wb["Данные"]
-        self.assertEqual(ws.title, "Данные")
+        ws = wb["Доски"]
         self.assertEqual(ws.freeze_panes, "A2")
         cells = [str(c.value) for c in ws[2]]
         self.assertTrue(any("'=1+1" in v or "=1+1" in v for v in cells))
+        # подробный лист карточек присутствует
+        self.assertIn("Карточки", wb.sheetnames)
+        dws = wb["Карточки"]
+        headers = [c.value for c in dws[1]]
+        self.assertIn("Колонка", headers)
+        self.assertIn("Приоритет", headers)
+        self.assertIn("Просрочено", headers)
 
 
 class FileTests(TestCase):

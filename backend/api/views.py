@@ -1,4 +1,5 @@
 import os
+from datetime import date
 
 from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
@@ -394,18 +395,71 @@ class BoardPagination(PageNumberPagination):
         return response
 
 
+def _iter_cards(board):
+    for col in board.columns.all():
+        for card in col.cards.all():
+            yield card
+
+
+def _priority_label(card):
+    labels = {0: "—", 1: "Низкий", 2: "Средний", 3: "Высокий"}
+    return labels.get(card.priority, str(card.priority))
+
+
+def _is_overdue(card):
+    return bool(card.due_date and card.due_date < date.today())
+
+
+def _board_done_pct(board):
+    """Процент карточек в последней колонке (считается «готово»)."""
+    cards = list(_iter_cards(board))
+    if not cards:
+        return 0
+    cols = list(board.columns.order_by("-position"))
+    if not cols:
+        return 0
+    done_in_last = sum(1 for c in cards if c.column_id == cols[0].id)
+    return round(100 * done_in_last / len(cards))
+
+
 class BoardViewSet(ExcelExportMixin, viewsets.ModelViewSet):
     """Основная сущность темы — доски. Пользователь видит только свои."""
 
     permission_classes = [IsAuthenticated]
     pagination_class = BoardPagination
+
     export_columns = [
         ("ID", lambda b: b.id),
         ("Название", lambda b: b.title),
         ("Описание", lambda b: b.description),
+        ("Метка", lambda b: b.category or "—"),
+        ("Владелец", lambda b: b.owner.username),
         ("Колонок", lambda b: b.columns.count()),
-        ("Карточек", lambda b: sum(c.cards.count() for c in b.columns.all())),
+        (
+            "Карточек",
+            lambda b: sum(c.cards.count() for c in b.columns.all()),
+        ),
+        ("Готово (%)", _board_done_pct),
+        ("Просроченных", lambda b: sum(1 for c in _iter_cards(b) if _is_overdue(c))),
         ("Создана", lambda b: b.created_at.date()),
+        ("Обновлена", lambda b: b.updated_at.date()),
+    ]
+
+    detail_columns = [
+        ("Доска", lambda b, c, k: b.title),
+        ("Метка доски", lambda b, c, k: b.category or "—"),
+        ("Колонка", lambda b, c, k: c.title),
+        ("Карточка ID", lambda b, c, k: k.id),
+        ("Заголовок", lambda b, c, k: k.title),
+        ("Описание", lambda b, c, k: k.description),
+        ("Приоритет", lambda b, c, k: _priority_label(k)),
+        ("Срок", lambda b, c, k: k.due_date),
+        ("Просрочено", lambda b, c, k: "Да" if _is_overdue(k) else ""),
+        ("Вложений", lambda b, c, k: k.files.count()),
+        ("Имена файлов",
+         lambda b, c, k: ", ".join(f.original_name for f in k.files.all())),
+        ("Создана", lambda b, c, k: k.created_at.date()),
+        ("Обновлена", lambda b, c, k: k.updated_at.date()),
     ]
 
     def get_queryset(self):

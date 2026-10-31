@@ -20,9 +20,14 @@ def _safe_cell(value):
 
 
 class ExcelExportMixin:
-    """GET /api/boards/export/ — выгрузка записей пользователя в .xlsx."""
+    """GET /api/boards/export/ — выгрузка записей пользователя в .xlsx.
+
+    Лист «Доски» — сводка по доскам; лист «Карточки» — подробные данные
+    каждой карточки (колонка, приоритет, срок, вложения и т.д.).
+    """
 
     export_columns = []  # list of (header, getter)
+    detail_columns = []  # list of (header, getter) для листа «Карточки»
 
     @action(detail=False, methods=["get"], url_path="export")
     def export(self, request):
@@ -33,7 +38,7 @@ class ExcelExportMixin:
 
         wb = Workbook()
         ws = wb.active
-        ws.title = "Данные"
+        ws.title = "Доски"
         headers = [h for h, _ in self.export_columns]
         ws.append(headers)
         for cell in ws[1]:
@@ -65,6 +70,47 @@ class ExcelExportMixin:
                 if val is not None:
                     width = max(width, min(len(str(val)), 60))
             ws.column_dimensions[letter].width = width + 2
+
+        # --- Лист «Карточки»: подробные данные по всем карточкам досок ---
+        if self.detail_columns:
+            ws2 = wb.create_sheet("Карточки")
+            d_headers = [h for h, _ in self.detail_columns]
+            ws2.append(d_headers)
+            for cell in ws2[1]:
+                cell.font = Font(bold=True)
+            ws2.freeze_panes = "A2"
+
+            detail_count = 0
+            for board in rows:
+                for col in board.columns.all():
+                    for card in col.cards.all():
+                        if detail_count >= MAX_EXPORT_ROWS:
+                            break
+                        r = ws2.max_row + 1
+                        for col_idx, (_, getter) in enumerate(
+                            self.detail_columns, start=1
+                        ):
+                            v = getter(board, col, card)
+                            cell = ws2.cell(row=r, column=col_idx)
+                            if isinstance(v, (date, datetime)):
+                                cell.value = v
+                                cell.number_format = "DD.MM.YYYY"
+                            elif isinstance(v, (int, float)):
+                                cell.value = v
+                            else:
+                                cell.value = _safe_cell(v)
+                        detail_count += 1
+            ws2.auto_filter.ref = (
+                f"A1:{get_column_letter(len(d_headers))}{max(ws2.max_row, 1)}"
+            )
+            for idx, header in enumerate(d_headers, start=1):
+                letter = get_column_letter(idx)
+                width = len(str(header))
+                for r in range(2, ws2.max_row + 1):
+                    val = ws2.cell(row=r, column=idx).value
+                    if val is not None:
+                        width = max(width, min(len(str(val)), 60))
+                ws2.column_dimensions[letter].width = width + 2
 
         response = HttpResponse(
             content_type=(
